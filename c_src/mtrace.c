@@ -1,9 +1,10 @@
+#include <erl_nif.h>
 
 #include <dlfcn.h>
 #include <stddef.h>
 #include <stdatomic.h>
 
-atomic_size_t allocated;
+static atomic_size_t allocated;
 
 typedef struct {
     size_t size;
@@ -41,3 +42,13 @@ void free(void *ptr) {
     void (*real_free)(void *) = dlsym(RTLD_NEXT, "free");
     real_free(p);
 }
+
+static ERL_NIF_TERM allocated_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    return enif_make_int(env, allocated);
+}
+
+static ErlNifFunc nif_funcs[] = {
+    {"allocated", 0, allocated_nif}
+};
+
+ERL_NIF_INIT(Elixir.Mtrace, nif_funcs, NULL, NULL, NULL, NULL)

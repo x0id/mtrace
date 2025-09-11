@@ -1,18 +1,13 @@
 defmodule Mtrace do
-  @moduledoc """
-  Documentation for `Mtrace`.
-  """
+  @on_load :load_nifs
 
-  @doc """
-  Hello world.
+  def load_nifs do
+    :code.priv_dir(:mtrace)
+    |> :filename.join(:mtrace)
+    |> :erlang.load_nif(0)
+  end
 
-  ## Examples
-
-      iex> Mtrace.hello()
-      :world
-
-  """
-  def hello do
-    :world
+  def allocated do
+    :erlang.nif_error(:nif_not_loaded)
   end
 end

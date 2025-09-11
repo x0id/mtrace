@@ -3,6 +3,7 @@
 case `uname -s` in
   Darwin)
     echo "CC ?= cc"
+    echo "LDFLAGS = -undefined dynamic_lookup"
     ;;
   FreeBSD)
     echo "CC ?= cc"
