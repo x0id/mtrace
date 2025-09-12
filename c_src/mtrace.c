@@ -1,10 +1,10 @@
 #include <erl_nif.h>
 
-#include <dlfcn.h>
-#include <stddef.h>
 #include <stdatomic.h>
-#include <string.h>
 #include <assert.h>
+
+#define _GNU_SOURCE
+#include <dlfcn.h>
 
 // LD_PRELOAD=lib/mtrace-0.1.0/priv/mtrace.so bin/sandbox start_iex
 
