@@ -1,10 +1,15 @@
 #include <erl_nif.h>
 
 #include <stdatomic.h>
-#include <assert.h>
-#include <dlfcn.h>
+
+// #include <dlfcn.h>
 
 // LD_PRELOAD=lib/mtrace-0.1.0/priv/mtrace.so bin/sandbox start_iex
+
+void *__libc_malloc(size_t size);
+void *__libc_calloc(size_t nmemb, size_t size);
+void *__libc_realloc(void *ptr, size_t size);
+void __libc_free(void* ptr);
 
 // static atomic_size_t allocated;
 static atomic_size_t m_cnt;
@@ -20,10 +25,10 @@ typedef struct {
 } hdr_t;
 
 void *malloc(size_t size) {
-    void *(*real_malloc)(size_t) = dlsym(RTLD_NEXT, "malloc");
-    assert(real_malloc != NULL);
+    // void *(*real_malloc)(size_t) = dlsym(RTLD_NEXT, "malloc");
+    // assert(real_malloc != NULL);
     atomic_fetch_add(&m_cnt, 1);
-    return real_malloc(size);
+    return __libc_malloc(size);
 /*
     void *ptr = real_malloc(size + sizeof(hdr_t));
     if (ptr == NULL) return NULL;
@@ -35,10 +40,10 @@ void *malloc(size_t size) {
 }
 
 void *calloc(size_t count, size_t size) {
-    void *(*real_calloc)(size_t, size_t) = dlsym(RTLD_NEXT, "calloc");
-    assert(real_calloc != NULL);
+    // void *(*real_calloc)(size_t, size_t) = dlsym(RTLD_NEXT, "calloc");
+    // assert(real_calloc != NULL);
     atomic_fetch_add(&c_cnt, 1);
-    return real_calloc(count, size);
+    return __libc_calloc(count, size);
 /*
     // return malloc(count * size);
     size *= count;
@@ -54,10 +59,10 @@ void *calloc(size_t count, size_t size) {
 }
 
 void *realloc(void *ptr, size_t size) {
-    void *(*real_realloc)(void *, size_t) = dlsym(RTLD_NEXT, "realloc");
-    assert(real_realloc != NULL);
+    // void *(*real_realloc)(void *, size_t) = dlsym(RTLD_NEXT, "realloc");
+    // assert(real_realloc != NULL);
     atomic_fetch_add(&r_cnt, 1);
-    return real_realloc(ptr, size);
+    return __libc_realloc(ptr, size);
 /*
     if (ptr == NULL) return malloc(size);
     void *p = (char *)ptr - sizeof(hdr_t);
@@ -111,10 +116,10 @@ char *strndup(const char *str, size_t n) {
 */
 
 void free(void *ptr) {
-    void (*real_free)(void *) = dlsym(RTLD_NEXT, "free");
-    assert(real_free != NULL);
+    // void (*real_free)(void *) = dlsym(RTLD_NEXT, "free");
+    // assert(real_free != NULL);
     atomic_fetch_add(&f_cnt, 1);
-    real_free(ptr);
+    __libc_free(ptr);
 /*
     if (ptr == NULL) return;
     void *p = (char *)ptr - sizeof(hdr_t);
