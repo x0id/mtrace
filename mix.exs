@@ -37,6 +37,13 @@ defmodule Mix.Tasks.Compile.Make do
     {result, exit_code} = System.cmd("make", [], cd: "c_src")
     IO.binwrite(result)
     exit_code == 0 || Mix.raise("NIF compile failed")
+
+    # copy .so to _build/ to ensure module can find it when loaded by compiler
+    Mix.Project.build_path()
+    |> Path.join("lib/mtrace/priv")
+    |> tap(&File.mkdir_p!/1)
+    |> then(&File.cp("priv/mtrace.so", "#{&1}/mtrace.so"))
+
     :ok
   end
 end
