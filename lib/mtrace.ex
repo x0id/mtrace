@@ -7,7 +7,11 @@ defmodule Mtrace do
     |> :erlang.load_nif(0)
   end
 
-  def allocated do
+  # def allocated do
+  #   :erlang.nif_error(:nif_not_loaded)
+  # end
+
+  def stats do
     :erlang.nif_error(:nif_not_loaded)
   end
 end
