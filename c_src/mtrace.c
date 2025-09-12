@@ -111,7 +111,7 @@ char *strndup(const char *str, size_t n) {
 */
 
 void free(void *ptr) {
-    void *(*real_free)(void *) = dlsym(RTLD_NEXT, "free");
+    void (*real_free)(void *) = dlsym(RTLD_NEXT, "free");
     assert(real_free != NULL);
     atomic_fetch_add(&f_cnt, 1);
     real_free(ptr);
