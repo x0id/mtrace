@@ -11,8 +11,8 @@ case `uname -s` in
   Linux)
     echo "CC ?= gcc"
     # bullseye needs the following for dlsym(3)
-    echo "CFLAGS += -D_GNU_SOURCE"
-    echo "LDFLAGS += -Wl,--no-as-needed -ldl"
+    # echo "CFLAGS += -D_GNU_SOURCE"
+    # echo "LDFLAGS += -Wl,--no-as-needed -ldl"
     ;;
 esac
 
