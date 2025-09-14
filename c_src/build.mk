@@ -1,6 +1,6 @@
 include makevars.mk
 
-TARGET_DIR = ../priv
+TARGET_DIR ?= build
 TARGET = ${TARGET_DIR}/mtrace.so
 
 SRC = mtrace.c

@@ -1,8 +1,11 @@
 defmodule MtraceTest do
   use ExUnit.Case
-  doctest Mtrace
 
-  test "greets the world" do
-    assert Mtrace.hello() == :world
+  test "stats" do
+    assert {m, c, r, f} = Mtrace.stats()
+    assert is_integer(m)
+    assert is_integer(c)
+    assert is_integer(r)
+    assert is_integer(f)
   end
 end
