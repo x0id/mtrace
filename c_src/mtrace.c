@@ -1,6 +1,13 @@
+#define COMPILE_TIME_ASSERT(condition) \
+    enum { COMPILE_TIME_ASSERT_##__LINE__ = 1 / (!!(condition)) }
+
 #include <erl_nif.h>
 
 #include <stdatomic.h>
+
+void checks() {
+    COMPILE_TIME_ASSERT(sizeof(atomic_size_t) == 8);
+}
 
 // #include <dlfcn.h>
 
@@ -136,15 +143,15 @@ void free(void *ptr) {
 }
 
 /* static ERL_NIF_TERM allocated_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    return enif_make_int(env, allocated);
+    return enif_make_uint64(env, allocated);
 } */
 
 static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     return enif_make_tuple4(env,
-      enif_make_int(env, m_cnt),
-      enif_make_int(env, c_cnt),
-      enif_make_int(env, r_cnt),
-      enif_make_int(env, f_cnt)
+      enif_make_uint64(env, m_cnt),
+      enif_make_uint64(env, c_cnt),
+      enif_make_uint64(env, r_cnt),
+      enif_make_uint64(env, f_cnt)
     );
 }
 

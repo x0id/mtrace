@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+
+# make sure mtrace.so exists
+MIX_ENV=test mix compile
+
+# preload it, run tests
+export LD_PRELOAD=$(pwd)/_build/test/lib/mtrace/priv/mtrace.so
+exec mix test "$@"

@@ -24,8 +24,7 @@ defmodule Mtrace.MixProject do
   # Run "mix help deps" to learn about dependencies.
   defp deps do
     [
-      # {:dep_from_hexpm, "~> 0.3.0"},
-      # {:dep_from_git, git: "https://github.com/elixir-lang/my_dep.git", tag: "0.1.0"}
+      {:nif, [path: "test/nif", only: :test]}
     ]
   end
 end
@@ -34,7 +33,7 @@ defmodule Mix.Tasks.Compile.Make do
   use Mix.Task
 
   def run(_args) do
-    target_dir = Mix.Project.build_path() |> Path.join("lib/mtrace/priv")
+    target_dir = Mix.Project.app_path() |> Path.join("priv")
     {result, exit_code} = System.cmd("make", [], cd: "c_src", env: [{"TARGET_DIR", target_dir}])
     IO.binwrite(result)
     exit_code == 0 || Mix.raise("NIF compile failed")
