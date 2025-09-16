@@ -225,17 +225,26 @@ static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     return enif_make_tuple2(env, elapsed, acc);
 }
 
+static ERL_NIF_TERM erase_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    size_t addr;
+    if (!enif_get_uint64(env, argv[0], &addr))
+        return enif_make_badarg(env);
+    dehash((void *)addr);
+    return enif_make_atom(env, "ok");
+}
+
 static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     size_t addr;
     if (!enif_get_uint64(env, argv[0], &addr))
-	    return enif_make_badarg(env);
+        return enif_make_badarg(env);
     elem *ep = &tab[hash_index((void *)addr)];
     Dl_info info;
     ERL_NIF_TERM arr[DEEP];
-    for (int i=0; i<DEEP; i++) {
+    int i;
+    for (i=0; i<DEEP; i++) {
         void *addr = ep->stack[i];
         if (0 == addr)
-            return enif_make_list_from_array(env, arr, i);
+            break;
         if (0 == dladdr(addr, &info))
             arr[i] = enif_make_atom(env, "nil");
         else
@@ -246,7 +255,7 @@ static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
                     : enif_make_string(env, info.dli_sname, ERL_NIF_LATIN1)
             );
     }
-    return enif_make_atom(env, "nil");
+    return enif_make_list_from_array(env, arr, i);
 }
 
 static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -261,6 +270,7 @@ static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 static ErlNifFunc nif_funcs[] = {
     // {"allocated", 0, allocated_nif},
     {"batch", 0, batch_nif},
+    {"erase", 1, erase_nif},
     {"stack", 1, stack_nif},
     {"stats", 0, stats_nif}
 };
