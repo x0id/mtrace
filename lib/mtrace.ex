@@ -19,6 +19,10 @@ defmodule Mtrace do
     :erlang.nif_error(:nif_not_loaded)
   end
 
+  def reset do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
   def stack(_) do
     :erlang.nif_error(:nif_not_loaded)
   end

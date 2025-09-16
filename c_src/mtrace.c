@@ -233,6 +233,16 @@ static ERL_NIF_TERM erase_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     return enif_make_atom(env, "ok");
 }
 
+static ERL_NIF_TERM reset_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    void *ptr;
+    for (int i=0; i<SIZE; i++) {
+        elem *p = &tab[i];
+        do ptr = atomic_load(&p->ptr);
+        while (!atomic_compare_exchange_weak(&p->ptr, &ptr, (void *)0));
+    }
+    return enif_make_atom(env, "ok");
+}
+
 static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     size_t addr;
     if (!enif_get_uint64(env, argv[0], &addr))
@@ -271,6 +281,7 @@ static ErlNifFunc nif_funcs[] = {
     // {"allocated", 0, allocated_nif},
     {"batch", 0, batch_nif},
     {"erase", 1, erase_nif},
+    {"reset", 0, reset_nif},
     {"stack", 1, stack_nif},
     {"stats", 0, stats_nif}
 };
