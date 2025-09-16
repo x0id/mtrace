@@ -33,7 +33,7 @@ typedef struct {
 } hdr_t; */
 
 #define DEEP 12
-#define SIZE 16
+#define SIZE 4096
 
 typedef struct {
     _Atomic void *ptr;
@@ -195,6 +195,9 @@ void free(void *ptr) {
 } */
 
 static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    struct timespec start, end;
+    timespec_get(&start, TIME_UTC);
+
     ERL_NIF_TERM acc = enif_make_new_map(env);
     for (int i=0; i<SIZE; i++) {
         elem *p = &tab[i];
@@ -209,7 +212,13 @@ static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
         // "release" entry
         atomic_store(&p->ptr, ptr);
     }
-    return acc;
+
+    timespec_get(&end, TIME_UTC);
+    ERL_NIF_TERM elapsed = enif_make_uint64(env,
+        (end.tv_sec - start.tv_sec) * 1000000000LL + (end.tv_nsec - start.tv_nsec)
+    );
+
+    return enif_make_tuple2(env, elapsed, acc);
 }
 
 static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
