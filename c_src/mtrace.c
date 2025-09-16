@@ -67,6 +67,10 @@ static void dehash(void *ptr) {
     do {
         if (atomic_compare_exchange_weak(&p->ptr, &expected, (void *)0))
             break;
+        if (expected == (void *)1) {
+            expected = ptr;
+            continue;
+        }
     } while (ptr == expected);
 }
 
