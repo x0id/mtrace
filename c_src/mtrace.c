@@ -1,17 +1,18 @@
-#define COMPILE_TIME_ASSERT(condition) \
-    enum { COMPILE_TIME_ASSERT_##__LINE__ = 1 / (!!(condition)) }
+#define _GNU_SOURCE
+#include <dlfcn.h>
+#include <execinfo.h>
+#include <stdatomic.h>
+#include <string.h>
+#include <threads.h>
 
 #include <erl_nif.h>
 
-#include <stdatomic.h>
+#define COMPILE_TIME_ASSERT(condition) \
+    enum { COMPILE_TIME_ASSERT_##__LINE__ = 1 / (!!(condition)) }
 
 void checks() {
     COMPILE_TIME_ASSERT(sizeof(atomic_size_t) == 8);
 }
-
-// #include <dlfcn.h>
-
-// LD_PRELOAD=lib/mtrace-0.1.0/priv/mtrace.so bin/sandbox start_iex
 
 void *__libc_malloc(size_t size);
 void *__libc_calloc(size_t nmemb, size_t size);
@@ -24,18 +25,64 @@ static atomic_size_t c_cnt;
 static atomic_size_t r_cnt;
 static atomic_size_t f_cnt;
 
-// const size_t magic = 0x635727321;
+/* const size_t magic = 0x635727321;
 
 typedef struct {
     size_t size;
     size_t mnum;
-} hdr_t;
+} hdr_t; */
+
+#define DEEP 12
+#define SIZE 16
+
+typedef struct {
+    _Atomic void *ptr;
+    void *stack[DEEP];
+    time_t ts;
+} elem;
+
+static elem tab[SIZE];
+
+int hash_index(void *addr) { return (size_t)addr / 16 % SIZE; }
+
+static void *hash(void *ptr) {
+    static thread_local int flag;
+    if (flag == 0) {
+        flag = 1;
+        elem *p = &tab[hash_index(ptr)];
+        void *expected = 0;
+        if (atomic_compare_exchange_weak(&p->ptr, &expected, ptr)) {
+            int n = backtrace(p->stack, DEEP);
+            if (n < DEEP) memset(&p->stack[n], 0, DEEP - n);
+            time(&p->ts);
+        }
+        flag = 0;
+    }
+    return ptr;
+}
+
+static void dehash(void *ptr) {
+    elem *p = &tab[hash_index(ptr)];
+    void *expected = ptr;
+    do {
+        if (atomic_compare_exchange_weak(&p->ptr, &expected, (void *)0))
+            break;
+    } while (ptr == expected);
+}
+
+static void *rehash(void *old, void *ptr) {
+    if (ptr != old) {
+        dehash(old);
+        hash(ptr);
+    }
+    return ptr;
+}
 
 void *malloc(size_t size) {
     // void *(*real_malloc)(size_t) = dlsym(RTLD_NEXT, "malloc");
     // assert(real_malloc != NULL);
     atomic_fetch_add(&m_cnt, 1);
-    return __libc_malloc(size);
+    return hash(__libc_malloc(size));
 /*
     void *ptr = real_malloc(size + sizeof(hdr_t));
     if (ptr == NULL) return NULL;
@@ -50,7 +97,7 @@ void *calloc(size_t count, size_t size) {
     // void *(*real_calloc)(size_t, size_t) = dlsym(RTLD_NEXT, "calloc");
     // assert(real_calloc != NULL);
     atomic_fetch_add(&c_cnt, 1);
-    return __libc_calloc(count, size);
+    return hash(__libc_calloc(count, size));
 /*
     // return malloc(count * size);
     size *= count;
@@ -69,7 +116,7 @@ void *realloc(void *ptr, size_t size) {
     // void *(*real_realloc)(void *, size_t) = dlsym(RTLD_NEXT, "realloc");
     // assert(real_realloc != NULL);
     atomic_fetch_add(&r_cnt, 1);
-    return __libc_realloc(ptr, size);
+    return rehash(ptr, __libc_realloc(ptr, size));
 /*
     if (ptr == NULL) return malloc(size);
     void *p = (char *)ptr - sizeof(hdr_t);
@@ -126,6 +173,7 @@ void free(void *ptr) {
     // void (*real_free)(void *) = dlsym(RTLD_NEXT, "free");
     // assert(real_free != NULL);
     atomic_fetch_add(&f_cnt, 1);
+    dehash(ptr);
     __libc_free(ptr);
 /*
     if (ptr == NULL) return;
@@ -146,6 +194,48 @@ void free(void *ptr) {
     return enif_make_uint64(env, allocated);
 } */
 
+static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    ERL_NIF_TERM acc = enif_make_new_map(env);
+    for (int i=0; i<SIZE; i++) {
+        elem *p = &tab[i];
+        // "lock" entry
+        void *ptr;
+        do ptr = atomic_load(&p->ptr);
+        while (!atomic_compare_exchange_weak(&p->ptr, &ptr, (void *)1));
+        // collect data
+        ERL_NIF_TERM key = enif_make_uint64(env, (size_t)ptr);
+        ERL_NIF_TERM val = enif_make_uint64(env, p->ts);
+        enif_make_map_put(env, acc, key, val, &acc);
+        // "release" entry
+        atomic_store(&p->ptr, ptr);
+    }
+    return acc;
+}
+
+static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    size_t addr;
+    if (!enif_get_uint64(env, argv[0], &addr))
+	    return enif_make_badarg(env);
+    elem *ep = &tab[hash_index((void *)addr)];
+    Dl_info info;
+    ERL_NIF_TERM arr[DEEP];
+    for (int i=0; i<DEEP; i++) {
+        void *addr = ep->stack[i];
+        if (0 == addr)
+            return enif_make_list_from_array(env, arr, i);
+        if (0 == dladdr(addr, &info))
+            arr[i] = enif_make_atom(env, "nil");
+        else
+            arr[i] = enif_make_tuple2(env,
+                enif_make_string(env, info.dli_fname, ERL_NIF_LATIN1),
+                info.dli_sname == NULL
+                    ? enif_make_atom(env, "nil")
+                    : enif_make_string(env, info.dli_sname, ERL_NIF_LATIN1)
+            );
+    }
+    return enif_make_atom(env, "nil");
+}
+
 static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
     return enif_make_tuple4(env,
       enif_make_uint64(env, m_cnt),
@@ -157,6 +247,8 @@ static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 
 static ErlNifFunc nif_funcs[] = {
     // {"allocated", 0, allocated_nif},
+    {"batch", 0, batch_nif},
+    {"stack", 1, stack_nif},
     {"stats", 0, stats_nif}
 };
 

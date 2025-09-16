@@ -2,7 +2,8 @@ defmodule MtraceTest do
   use ExUnit.Case
 
   test "stats" do
-    assert {m, c, r, f} = Mtrace.stats()
+    assert {m, c, r, f} = x = Mtrace.stats()
+    IO.inspect(x)
     assert is_integer(m)
     assert is_integer(c)
     assert is_integer(r)

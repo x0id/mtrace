@@ -11,6 +11,14 @@ defmodule Mtrace do
   #   :erlang.nif_error(:nif_not_loaded)
   # end
 
+  def batch do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  def stack(_) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
   def stats do
     :erlang.nif_error(:nif_not_loaded)
   end
