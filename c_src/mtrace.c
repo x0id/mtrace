@@ -207,12 +207,16 @@ static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
         elem *p = &tab[i];
         // "lock" entry
         void *ptr;
-        do ptr = atomic_load(&p->ptr);
-        while (!atomic_compare_exchange_weak(&p->ptr, &ptr, (void *)1));
+        do {
+            ptr = atomic_load(&p->ptr);
+            if (ptr == (void *)0) break;
+        } while (!atomic_compare_exchange_weak(&p->ptr, &ptr, (void *)1));
         // collect data
-        ERL_NIF_TERM key = enif_make_uint64(env, (size_t)ptr);
-        ERL_NIF_TERM val = enif_make_uint64(env, p->ts);
-        enif_make_map_put(env, acc, key, val, &acc);
+        if (ptr != (void *)0) {
+            ERL_NIF_TERM key = enif_make_uint64(env, (size_t)ptr);
+            ERL_NIF_TERM val = enif_make_uint64(env, p->ts);
+            enif_make_map_put(env, acc, key, val, &acc);
+        }
         // "release" entry
         atomic_store(&p->ptr, ptr);
     }
