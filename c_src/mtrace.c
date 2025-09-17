@@ -154,6 +154,9 @@ static ERL_NIF_TERM erase_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ERL_NIF_TERM reset_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    struct timespec start;
+    timespec_get(&start, TIME_UTC);
+
     void *ptr;
     for (int i=0; i<SIZE; i++) {
         elem *p = &tab[i];
@@ -171,7 +174,7 @@ static ERL_NIF_TERM reset_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
         // reset/release non-empty record
         atomic_store(&p->ptr, ZERO);
     }
-    return enif_make_atom(env, "ok");
+    return enif_make_uint64(env, elapsed(&start));
 }
 
 static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -217,10 +220,10 @@ static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ErlNifFunc nif_funcs[] = {
-    {"batch", 0, batch_nif},
-    {"erase", 1, erase_nif},
-    {"reset", 0, reset_nif},
-    {"stack", 1, stack_nif},
+    {"batch", 0, batch_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"erase", 1, erase_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"reset", 0, reset_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
+    {"stack", 1, stack_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"stats", 0, stats_nif}
 };
 
