@@ -34,7 +34,7 @@ defmodule Mtrace do
     |> Enum.map(&stack/1)
   end
 
-  def olds(n \\ 10) do
+  def olds(n \\ 10, p \\ false) do
     now = System.system_time(:second)
 
     batch()
@@ -43,11 +43,11 @@ defmodule Mtrace do
     |> Enum.take(n)
     |> Enum.map(fn {addr, ts} ->
       {elapsed, calls} = stack(addr)
-      {now - ts, addr, elapsed, calls |> pretty()}
+      {now - ts, addr, elapsed, calls |> pretty(p)}
     end)
   end
 
-  def pretty(stack) when is_list(stack) do
+  def pretty(stack, true) when is_list(stack) do
     Enum.map(stack, fn
       nil ->
         nil
@@ -57,7 +57,7 @@ defmodule Mtrace do
     end)
   end
 
-  def pretty(stack), do: stack
+  def pretty(stack, _), do: stack
 
   def demangle(nil), do: nil
 
