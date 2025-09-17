@@ -7,10 +7,6 @@ defmodule Mtrace do
     |> :erlang.load_nif(0)
   end
 
-  # def allocated do
-  #   :erlang.nif_error(:nif_not_loaded)
-  # end
-
   def batch do
     :erlang.nif_error(:nif_not_loaded)
   end
@@ -46,7 +42,8 @@ defmodule Mtrace do
     |> Enum.sort_by(&elem(&1, 1), :asc)
     |> Enum.take(n)
     |> Enum.map(fn {addr, ts} ->
-      {now - ts, addr, stack(addr) |> pretty()}
+      {elapsed, calls} = stack(addr)
+      {now - ts, addr, elapsed, calls |> pretty()}
     end)
   end
 
