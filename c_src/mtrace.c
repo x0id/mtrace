@@ -102,12 +102,20 @@ void free(void *ptr) {
     __libc_free(ptr);
 }
 
+static long elapsed(struct timespec *start) {
+    struct timespec end;
+    timespec_get(&end, TIME_UTC);
+    return (end.tv_sec - start->tv_sec) * 1000000000LL + (end.tv_nsec - start->tv_nsec);
+}
+
 static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    struct timespec start, end;
+    struct timespec start;
     timespec_get(&start, TIME_UTC);
 
-    ERL_NIF_TERM acc = enif_make_new_map(env);
+    ERL_NIF_TERM *keys = __libc_calloc(SIZE, sizeof(ERL_NIF_TERM));
+    ERL_NIF_TERM *vals = __libc_calloc(SIZE, sizeof(ERL_NIF_TERM));
     void *ptr;
+    int k = 0;
     for (int i=0; i<SIZE; i++) {
         elem *p = &tab[i];
         // lock non-empty unlocked record
@@ -122,19 +130,19 @@ static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
         // skip empty record
         if (ptr == ZERO) continue;
         // collect data
-        ERL_NIF_TERM key = enif_make_uint64(env, (size_t)ptr);
-        ERL_NIF_TERM val = enif_make_uint64(env, p->ts);
-        enif_make_map_put(env, acc, key, val, &acc);
+        keys[k] = enif_make_uint64(env, (size_t)ptr);
+        vals[k] = enif_make_uint64(env, p->ts);
+        k++;
         // release record
         atomic_store(&p->ptr, ptr);
     }
 
-    timespec_get(&end, TIME_UTC);
-    ERL_NIF_TERM elapsed = enif_make_uint64(env,
-        (end.tv_sec - start.tv_sec) * 1000000000LL + (end.tv_nsec - start.tv_nsec)
-    );
+    ERL_NIF_TERM map;
+    enif_make_map_from_arrays(env, keys, vals, k, &map);
+    __libc_free(vals);
+    __libc_free(keys);
 
-    return enif_make_tuple2(env, elapsed, acc);
+    return enif_make_tuple2(env, enif_make_uint64(env, elapsed(&start)), map);
 }
 
 static ERL_NIF_TERM erase_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
