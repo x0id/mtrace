@@ -47,7 +47,7 @@ static void *hash(void *ptr) {
         elem *p = &tab[hash_index(ptr)];
         void *zero = ZERO;
         // lock record only if it is empty
-        if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
+        if (atomic_compare_exchange_strong(&p->ptr, &zero, LOCK)) {
             // populate data
             int n = backtrace(p->stack, DEEP);
             if (n < DEEP) memset(&p->stack[n], 0, DEEP - n);
@@ -178,7 +178,7 @@ static ERL_NIF_TERM reset_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    struct timespec start, end;
+    struct timespec start;
     timespec_get(&start, TIME_UTC);
 
     size_t addr;
@@ -203,11 +203,8 @@ static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
             );
     }
 
-    timespec_get(&end, TIME_UTC);
-    ERL_NIF_TERM elapsed = enif_make_uint64(env,
-        (end.tv_sec - start.tv_sec) * 1000000000LL + (end.tv_nsec - start.tv_nsec)
-    );
-    return enif_make_tuple2(env, elapsed, enif_make_list_from_array(env, arr, i));
+    ERL_NIF_TERM ret = enif_make_uint64(env, elapsed(&start));
+    return enif_make_tuple2(env, ret, enif_make_list_from_array(env, arr, i));
 }
 
 static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -219,8 +216,33 @@ static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     );
 }
 
+static ERL_NIF_TERM malloc_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    struct timespec start;
+    timespec_get(&start, TIME_UTC);
+
+    size_t size;
+    if (!enif_get_uint64(env, argv[0], &size))
+        return enif_make_badarg(env);
+
+    void *ptr = malloc(size);
+    ERL_NIF_TERM addr = enif_make_uint64(env, (size_t)ptr);
+    return enif_make_tuple2(env, enif_make_uint64(env, elapsed(&start)), addr);
+}
+
+static ERL_NIF_TERM free_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    struct timespec start;
+    timespec_get(&start, TIME_UTC);
+
+    size_t addr;
+    if (!enif_get_uint64(env, argv[0], &addr))
+        return enif_make_badarg(env);
+
+    free((void *)addr);
+    return enif_make_uint64(env, elapsed(&start));
+}
+
 static ERL_NIF_TERM vsn_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    return enif_make_int(env, 1);
+    return enif_make_int(env, 2);
 }
 
 static ErlNifFunc nif_funcs[] = {
@@ -229,6 +251,8 @@ static ErlNifFunc nif_funcs[] = {
     {"reset", 0, reset_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"stack", 1, stack_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"stats", 0, stats_nif},
+    {"malloc", 1, malloc_nif},
+    {"free", 1, free_nif},
     {"vsn", 0, vsn_nif}
 };
 

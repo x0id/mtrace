@@ -27,6 +27,14 @@ defmodule Mtrace do
     :erlang.nif_error(:nif_not_loaded)
   end
 
+  def malloc(_) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
+  def free(_) do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
   def vsn do
     :erlang.nif_error(:nif_not_loaded)
   end
@@ -67,5 +75,18 @@ defmodule Mtrace do
 
   def demangle(x) do
     System.cmd("sh", ["-c", "echo #{x} |c++filt"], lines: 1) |> elem(0)
+  end
+
+  def f do
+    {_t1, addr} = Mtrace.malloc(1010)
+    Process.sleep(10000)
+    _t2 = Mtrace.free(addr)
+    # IO.puts("#{t1} #{t2}")
+  end
+
+  def loop() do
+    Process.spawn(&f/0, [])
+    Process.sleep(1)
+    loop()
   end
 end
