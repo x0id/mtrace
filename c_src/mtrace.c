@@ -24,8 +24,8 @@ static atomic_size_t c_cnt;
 static atomic_size_t r_cnt;
 static atomic_size_t f_cnt;
 
-#define DEEP 12
-#define SIZE 4096
+#define DEEP 4
+#define SIZE 1024
 
 typedef struct {
     _Atomic(void *) ptr;
