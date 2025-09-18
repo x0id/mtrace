@@ -1,9 +1,9 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
-#include <execinfo.h>
 #include <stdatomic.h>
 #include <string.h>
 #include <threads.h>
+#include <unwind.h>
 
 #include <erl_nif.h>
 
@@ -24,7 +24,7 @@ static atomic_size_t c_cnt;
 static atomic_size_t r_cnt;
 static atomic_size_t f_cnt;
 
-#define DEEP 4
+#define DEEP 8
 #define SIZE 1024
 
 typedef struct {
@@ -40,23 +40,43 @@ int hash_index(void *addr) { return (size_t)addr / 16 % SIZE; }
 #define ZERO ((void *) 0)
 #define LOCK ((void *) 1)
 
+typedef struct {
+    void **addrs;
+    int count;
+} trace_arg;
+
+static _Unwind_Reason_Code trace_fn(struct _Unwind_Context *ctx, void *arg) {
+    trace_arg *targ = (trace_arg *)arg;
+    if (targ->count >= DEEP)
+        return _URC_END_OF_STACK;
+
+    void *ip = (void *)_Unwind_GetIP(ctx);
+    if (ip) {
+        targ->addrs[targ->count++] = ip;
+    }
+    return _URC_NO_REASON;
+}
+
 static void *hash(void *ptr) {
-    static thread_local int flag;
-    if (flag == 0) {
-        flag = 1;
+    // static thread_local int flag;
+    // if (flag == 0) {
+        // flag = 1;
         elem *p = &tab[hash_index(ptr)];
         void *zero = ZERO;
         // lock record only if it is empty
         if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
             // populate data
-            int n = 0; // backtrace(p->stack, DEEP);
-            if (n < DEEP) memset(&p->stack[n], 0, DEEP - n);
+            trace_arg targ = { p->stack, 0 };
+            _Unwind_Backtrace(trace_fn, &targ);
+            for (int i=targ.count; i<DEEP; i++) p->stack[i] = 0;
+            /* int n = backtrace(p->stack, DEEP);
+            if (n < DEEP) memset(&p->stack[n], 0, DEEP - n); */
             time(&p->ts);
             // release record
             atomic_store(&p->ptr, ptr);
         }
-        flag = 0;
-    }
+        // flag = 0;
+    // }
     return ptr;
 }
 
@@ -242,7 +262,7 @@ static ERL_NIF_TERM free_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 }
 
 static ERL_NIF_TERM vsn_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    return enif_make_int(env, 3);
+    return enif_make_int(env, 4);
 }
 
 static ErlNifFunc nif_funcs[] = {
