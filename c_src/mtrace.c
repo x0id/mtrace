@@ -219,12 +219,17 @@ static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     );
 }
 
+static ERL_NIF_TERM vsn_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
+    return enif_make_int(env, 1);
+}
+
 static ErlNifFunc nif_funcs[] = {
     {"batch", 0, batch_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"erase", 1, erase_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"reset", 0, reset_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
     {"stack", 1, stack_nif, ERL_NIF_DIRTY_JOB_CPU_BOUND},
-    {"stats", 0, stats_nif}
+    {"stats", 0, stats_nif},
+    {"vsn", 0, vsn_nif}
 };
 
 ERL_NIF_INIT(Elixir.Mtrace, nif_funcs, NULL, NULL, NULL, NULL)

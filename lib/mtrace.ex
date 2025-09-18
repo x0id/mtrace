@@ -27,6 +27,10 @@ defmodule Mtrace do
     :erlang.nif_error(:nif_not_loaded)
   end
 
+  def vsn do
+    :erlang.nif_error(:nif_not_loaded)
+  end
+
   def stacks do
     batch()
     |> elem(1)
