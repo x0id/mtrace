@@ -3,7 +3,9 @@
 #include <stdatomic.h>
 #include <string.h>
 #include <threads.h>
-#include <unwind.h>
+
+#define UNW_LOCAL_ONLY
+#include <libunwind.h>
 
 #include <erl_nif.h>
 
@@ -40,7 +42,7 @@ int hash_index(void *addr) { return (size_t)addr / 16 % SIZE; }
 #define ZERO ((void *) 0)
 #define LOCK ((void *) 1)
 
-typedef struct {
+/* typedef struct {
     void **addrs;
     int count;
 } trace_arg;
@@ -55,7 +57,7 @@ static _Unwind_Reason_Code trace_fn(struct _Unwind_Context *ctx, void *arg) {
         targ->addrs[targ->count++] = ip;
     }
     return _URC_NO_REASON;
-}
+} */
 
 static void *hash(void *ptr) {
     // static thread_local int flag;
@@ -66,9 +68,11 @@ static void *hash(void *ptr) {
         // lock record only if it is empty
         if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
             // populate data
-            trace_arg targ = { p->stack, 0 };
-            _Unwind_Backtrace(trace_fn, &targ);
-            for (int i=targ.count; i<DEEP; i++) p->stack[i] = 0;
+            // p->stack[0] = __builtin_extract_return_addr(__builtin_frame_address(0));
+            // trace_arg targ = { &p->stack[1], 0 };
+            // _Unwind_Backtrace(trace_fn, &targ);
+            int n = unw_backtrace(p->stack, DEEP);
+            for (int i=n; i<DEEP; i++) p->stack[i] = 0;
             /* int n = backtrace(p->stack, DEEP);
             if (n < DEEP) memset(&p->stack[n], 0, DEEP - n); */
             time(&p->ts);

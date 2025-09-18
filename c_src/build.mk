@@ -11,7 +11,7 @@ CFLAGS += -Wall -Werror -Wno-parentheses
 CFLAGS += -O3 -fno-strict-aliasing
 
 LDFLAGS += -shared
-LDFLAGS += -L ${ERL_INTERFACE_LIB_DIR} -lei
+LDFLAGS += -L ${ERL_INTERFACE_LIB_DIR} -lei -lunwind
 
 ${OBJ}: ${SRC} makevars.mk
 	@${CC} ${CFLAGS} -c -o ${OBJ} ${SRC}
