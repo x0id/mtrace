@@ -49,7 +49,7 @@ static void *hash(void *ptr) {
         // lock record only if it is empty
         if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
             // populate data
-            int n = backtrace(p->stack, DEEP);
+            int n = 0; // backtrace(p->stack, DEEP);
             if (n < DEEP) memset(&p->stack[n], 0, DEEP - n);
             time(&p->ts);
             // release record
