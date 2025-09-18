@@ -28,7 +28,7 @@ static atomic_size_t f_cnt;
 #define SIZE 4096
 
 typedef struct {
-    _Atomic void *ptr;
+    _Atomic(void *) ptr;
     void *stack[DEEP];
     time_t ts;
 } elem;
@@ -47,7 +47,7 @@ static void *hash(void *ptr) {
         elem *p = &tab[hash_index(ptr)];
         void *zero = ZERO;
         // lock record only if it is empty
-        if (atomic_compare_exchange_strong(&p->ptr, &zero, LOCK)) {
+        if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
             // populate data
             int n = backtrace(p->stack, DEEP);
             if (n < DEEP) memset(&p->stack[n], 0, DEEP - n);
@@ -242,7 +242,7 @@ static ERL_NIF_TERM free_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 }
 
 static ERL_NIF_TERM vsn_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    return enif_make_int(env, 2);
+    return enif_make_int(env, 3);
 }
 
 static ErlNifFunc nif_funcs[] = {
