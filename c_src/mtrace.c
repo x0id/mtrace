@@ -26,7 +26,7 @@ static atomic_size_t c_cnt;
 static atomic_size_t r_cnt;
 static atomic_size_t f_cnt;
 
-#define DEEP 8
+#define DEEP 20
 #define SIZE 1024
 
 typedef struct {
