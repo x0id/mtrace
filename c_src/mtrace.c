@@ -1,11 +1,11 @@
 #define _GNU_SOURCE
 #include <dlfcn.h>
-#include <stdatomic.h>
-#include <string.h>
-#include <threads.h>
 
 #define UNW_LOCAL_ONLY
 #include <libunwind.h>
+
+#include <stdatomic.h>
+#include <time.h>
 
 #include <erl_nif.h>
 
@@ -31,6 +31,7 @@ static atomic_size_t f_cnt;
 
 typedef struct {
     _Atomic(void *) ptr;
+    size_t size;
     void *stack[DEEP];
     time_t ts;
 } elem;
@@ -42,45 +43,19 @@ int hash_index(void *addr) { return (size_t)addr / 16 % SIZE; }
 #define ZERO ((void *) 0)
 #define LOCK ((void *) 1)
 
-/* typedef struct {
-    void **addrs;
-    int count;
-} trace_arg;
-
-static _Unwind_Reason_Code trace_fn(struct _Unwind_Context *ctx, void *arg) {
-    trace_arg *targ = (trace_arg *)arg;
-    if (targ->count >= DEEP)
-        return _URC_END_OF_STACK;
-
-    void *ip = (void *)_Unwind_GetIP(ctx);
-    if (ip) {
-        targ->addrs[targ->count++] = ip;
+static void *hash(void *ptr, size_t size) {
+    elem *p = &tab[hash_index(ptr)];
+    void *zero = ZERO;
+    // lock record only if it is empty
+    if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
+        // populate data
+        int n = unw_backtrace(p->stack, DEEP);
+        for (int i=n; i<DEEP; i++) p->stack[i] = 0;
+        p->size = size;
+        time(&p->ts);
+        // release record
+        atomic_store(&p->ptr, ptr);
     }
-    return _URC_NO_REASON;
-} */
-
-static void *hash(void *ptr) {
-    // static thread_local int flag;
-    // if (flag == 0) {
-        // flag = 1;
-        elem *p = &tab[hash_index(ptr)];
-        void *zero = ZERO;
-        // lock record only if it is empty
-        if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
-            // populate data
-            // p->stack[0] = __builtin_extract_return_addr(__builtin_frame_address(0));
-            // trace_arg targ = { &p->stack[1], 0 };
-            // _Unwind_Backtrace(trace_fn, &targ);
-            int n = unw_backtrace(p->stack, DEEP);
-            for (int i=n; i<DEEP; i++) p->stack[i] = 0;
-            /* int n = backtrace(p->stack, DEEP);
-            if (n < DEEP) memset(&p->stack[n], 0, DEEP - n); */
-            time(&p->ts);
-            // release record
-            atomic_store(&p->ptr, ptr);
-        }
-        // flag = 0;
-    // }
     return ptr;
 }
 
@@ -97,27 +72,25 @@ static void dehash(void *ptr) {
     } while (ptr == expected);
 }
 
-static void *rehash(void *old, void *ptr) {
-    if (ptr != old) {
-        dehash(old);
-        hash(ptr);
-    }
+static void *rehash(void *old, void *ptr, size_t size) {
+    dehash(old);
+    hash(ptr, size);
     return ptr;
 }
 
 void *malloc(size_t size) {
     atomic_fetch_add(&m_cnt, 1);
-    return hash(__libc_malloc(size));
+    return hash(__libc_malloc(size), size);
 }
 
 void *calloc(size_t count, size_t size) {
     atomic_fetch_add(&c_cnt, 1);
-    return hash(__libc_calloc(count, size));
+    return hash(__libc_calloc(count, size), count * size);
 }
 
 void *realloc(void *ptr, size_t size) {
     atomic_fetch_add(&r_cnt, 1);
-    return rehash(ptr, __libc_realloc(ptr, size));
+    return rehash(ptr, __libc_realloc(ptr, size), size);
 }
 
 void free(void *ptr) {
@@ -155,7 +128,7 @@ static ERL_NIF_TERM batch_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
         if (ptr == ZERO) continue;
         // collect data
         keys[k] = enif_make_uint64(env, (size_t)ptr);
-        vals[k] = enif_make_uint64(env, p->ts);
+        vals[k] = enif_make_tuple2(env, enif_make_uint64(env, p->size), enif_make_uint64(env, p->ts));
         k++;
         // release record
         atomic_store(&p->ptr, ptr);

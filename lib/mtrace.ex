@@ -51,11 +51,11 @@ defmodule Mtrace do
 
     batch()
     |> elem(1)
-    |> Enum.sort_by(&elem(&1, 1), :asc)
+    |> Enum.sort_by(&elem(elem(&1, 1), 1), :asc)
     |> Enum.take(n)
-    |> Enum.map(fn {addr, ts} ->
+    |> Enum.map(fn {addr, {size, ts}} ->
       {elapsed, calls} = stack(addr)
-      {now - ts, addr, elapsed, calls |> pretty(p)}
+      {now - ts, size, addr, elapsed, calls |> pretty(p)}
     end)
   end
 
