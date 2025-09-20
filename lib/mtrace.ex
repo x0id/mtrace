@@ -59,22 +59,26 @@ defmodule Mtrace do
     end)
   end
 
-  def pretty(stack, true) when is_list(stack) do
+  def pretty(stack, flag) when is_list(stack) do
     Enum.map(stack, fn
       nil ->
         nil
 
-      {x, y} ->
-        {to_string(x), demangle(y)}
+      {_addr, lib, sym} ->
+        {to_string(lib), demangle(flag, sym)}
     end)
   end
 
   def pretty(stack, _), do: stack
 
-  def demangle(nil), do: nil
+  def demangle(_, nil), do: nil
 
-  def demangle(x) do
+  def demangle(true, x) do
     System.cmd("sh", ["-c", "echo #{x} |c++filt"], lines: 1) |> elem(0)
+  end
+
+  def demangle(_, x) do
+    to_string(x)
   end
 
   def f do

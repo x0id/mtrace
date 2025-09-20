@@ -4,5 +4,5 @@
 mix compile
 
 # preload it, run tests
-export LD_PRELOAD=/usr/lib/x86_64-linux-gnu/libunwind.so:$(pwd)/_build/dev/lib/mtrace/priv/mtrace.so
+export LD_PRELOAD=$(pwd)/_build/dev/lib/mtrace/priv/mtrace.so
 exec iex -S mix run "$@"

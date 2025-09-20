@@ -27,7 +27,7 @@ static atomic_size_t r_cnt;
 static atomic_size_t f_cnt;
 
 #define DEEP 20
-#define SIZE 1024
+#define SIZE 4096
 
 typedef struct {
     _Atomic(void *) ptr;
@@ -38,13 +38,19 @@ typedef struct {
 
 static elem tab[SIZE];
 
-int hash_index(void *addr) { return (size_t)addr / 16 % SIZE; }
+int hash_index(size_t x) {
+    x += 0x9e3779b97f4a7c15ULL;
+    x = (x ^ (x >> 30)) * 0xbf58476d1ce4e5b9ULL;
+    x = (x ^ (x >> 27)) * 0x94d049bb133111ebULL;
+    x ^= (x >> 31);
+    return x % SIZE;
+}
 
 #define ZERO ((void *) 0)
 #define LOCK ((void *) 1)
 
 static void *hash(void *ptr, size_t size) {
-    elem *p = &tab[hash_index(ptr)];
+    elem *p = &tab[hash_index((size_t)ptr)];
     void *zero = ZERO;
     // lock record only if it is empty
     if (atomic_compare_exchange_weak(&p->ptr, &zero, LOCK)) {
@@ -60,7 +66,7 @@ static void *hash(void *ptr, size_t size) {
 }
 
 static void dehash(void *ptr) {
-    elem *p = &tab[hash_index(ptr)];
+    elem *p = &tab[hash_index((size_t)ptr)];
     void *expected = ptr;
     do {
         if (atomic_compare_exchange_weak(&p->ptr, &expected, ZERO))
@@ -181,18 +187,19 @@ static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
     size_t addr;
     if (!enif_get_uint64(env, argv[0], &addr))
         return enif_make_badarg(env);
-    elem *ep = &tab[hash_index((void *)addr)];
+    elem *ep = &tab[hash_index(addr)];
     Dl_info info;
     ERL_NIF_TERM arr[DEEP];
     int i;
     for (i=0; i<DEEP; i++) {
-        void *addr = ep->stack[i];
-        if (0 == addr)
+        void *ptr = ep->stack[i];
+        if (0 == ptr)
             break;
-        if (0 == dladdr(addr, &info))
+        if (0 == dladdr(ptr, &info))
             arr[i] = enif_make_atom(env, "nil");
         else
-            arr[i] = enif_make_tuple2(env,
+            arr[i] = enif_make_tuple3(env,
+                enif_make_uint64(env, (size_t)ptr),
                 enif_make_string(env, info.dli_fname, ERL_NIF_LATIN1),
                 info.dli_sname == NULL
                     ? enif_make_atom(env, "nil")
