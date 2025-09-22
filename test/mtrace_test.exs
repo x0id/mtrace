@@ -2,17 +2,16 @@ defmodule MtraceTest do
   use ExUnit.Case
 
   test "stats" do
-    assert {m, c, r, f} = x = Mtrace.stats()
+    assert %{} = x = Mtrace.stats()
     IO.inspect(x)
-    assert is_integer(m)
-    assert is_integer(c)
-    assert is_integer(r)
-    assert is_integer(f)
+
+    for {k, v} <- x do
+      assert is_atom(k)
+      assert is_integer(v)
+    end
+
     assert :ok = Nif.malloc()
-    assert {m_, c_, r_, f_} = Mtrace.stats()
-    assert m_ - m >= 1
-    assert c_ - c >= 0
-    assert r_ - r >= 0
-    assert f_ - f >= 0
+    assert %{} = x_ = Mtrace.stats()
+    assert x_[:malloc_cnt] - x[:malloc_cnt] >= 1
   end
 end
