@@ -16,7 +16,7 @@ ${OBJ}: ${SRC} makevars.mk
 	@${CC} ${CFLAGS} -c -o ${OBJ} ${SRC}
 
 ${TARGET}: ${OBJ} ${TARGET_DIR} makevars.mk
-	@${CC} ${LDFLAGS} -o ${TARGET} ${OBJ} /usr/lib/x86_64-linux-gnu/libunwind.so
+	@${CC} ${LDFLAGS} -o ${TARGET} ${OBJ} ${LIBUNWIND}
 
 ${TARGET_DIR}:
 	@mkdir -p ${TARGET_DIR}

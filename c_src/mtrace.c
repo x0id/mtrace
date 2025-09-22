@@ -6,6 +6,10 @@
 
 #include <stdatomic.h>
 #include <time.h>
+#include <errno.h>
+#include <sys/param.h>
+#include <malloc.h>
+#include <string.h>
 
 #include <erl_nif.h>
 
@@ -20,11 +24,15 @@ void *__libc_malloc(size_t size);
 void *__libc_calloc(size_t nmemb, size_t size);
 void *__libc_realloc(void *ptr, size_t size);
 void __libc_free(void* ptr);
+int __posix_memalign(void **memptr, size_t alignment, size_t size);
 
-static atomic_size_t m_cnt;
-static atomic_size_t c_cnt;
-static atomic_size_t r_cnt;
-static atomic_size_t f_cnt;
+static atomic_size_t malloc_cnt;
+static atomic_size_t calloc_cnt;
+static atomic_size_t realloc_cnt;
+static atomic_size_t free_cnt;
+static atomic_size_t posix_memalign_cnt;
+static atomic_size_t strdup_cnt;
+static atomic_size_t strndup_cnt;
 
 #define DEEP 20
 #define SIZE 4096
@@ -85,24 +93,60 @@ static void *rehash(void *old, void *ptr, size_t size) {
 }
 
 void *malloc(size_t size) {
-    atomic_fetch_add(&m_cnt, 1);
+    atomic_fetch_add(&malloc_cnt, 1);
     return hash(__libc_malloc(size), size);
 }
 
 void *calloc(size_t count, size_t size) {
-    atomic_fetch_add(&c_cnt, 1);
+    atomic_fetch_add(&calloc_cnt, 1);
     return hash(__libc_calloc(count, size), count * size);
 }
 
 void *realloc(void *ptr, size_t size) {
-    atomic_fetch_add(&r_cnt, 1);
+    atomic_fetch_add(&realloc_cnt, 1);
     return rehash(ptr, __libc_realloc(ptr, size), size);
 }
 
 void free(void *ptr) {
-    atomic_fetch_add(&f_cnt, 1);
+    atomic_fetch_add(&free_cnt, 1);
     dehash(ptr);
     __libc_free(ptr);
+}
+
+void* __libc_memalign(size_t, size_t);
+
+int posix_memalign(void **memptr, size_t alignment, size_t size) {
+    void *mem;
+    if (alignment % sizeof (void *) != 0
+        || !powerof2 (alignment / sizeof (void *))
+        || alignment == 0)
+        return EINVAL;
+    mem = __libc_memalign(alignment, size);
+    if (mem != NULL) {
+        *memptr = hash(mem, size);
+        atomic_fetch_add(&posix_memalign_cnt, 1);
+        return 0;
+    }
+    return ENOMEM;
+}
+
+char *strdup(const char *s) {
+    size_t len = strlen(s) + 1;
+    atomic_fetch_add(&strdup_cnt, 1);
+    void *new = __libc_malloc(len);
+    if (new == NULL)
+        return NULL;
+    return (char *)hash(memcpy(new, s, len), len);
+}
+
+char *strndup(const char *s, size_t n) {
+    size_t len = strnlen(s, n);
+    atomic_fetch_add(&strndup_cnt, 1);
+    char *new = (char *)__libc_malloc(len + 1);
+    if (new == NULL)
+        return NULL;
+    new[len] = '\0';
+    return (char *)hash(memcpy(new, s, len), len + 1);
 }
 
 static long elapsed(struct timespec *start) {
@@ -212,12 +256,42 @@ static ERL_NIF_TERM stack_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[
 }
 
 static ERL_NIF_TERM stats_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    return enif_make_tuple4(env,
-      enif_make_uint64(env, m_cnt),
-      enif_make_uint64(env, c_cnt),
-      enif_make_uint64(env, r_cnt),
-      enif_make_uint64(env, f_cnt)
-    );
+    ERL_NIF_TERM keys[] = {
+        enif_make_atom(env, "malloc_cnt"),
+        enif_make_atom(env, "posix_memalign_cnt"),
+        enif_make_atom(env, "calloc_cnt"),
+        enif_make_atom(env, "realloc_cnt"),
+        enif_make_atom(env, "free_cnt"),
+        enif_make_atom(env, "strdup_cnt"),
+        enif_make_atom(env, "strndup_cnt"),
+        enif_make_atom(env, "allocated_bytes"),
+        enif_make_atom(env, "used_bytes"),
+        enif_make_atom(env, "free_bytes"),
+        enif_make_atom(env, "mmap_chunks"),
+        enif_make_atom(env, "mmap_bytes")
+    };
+
+    struct mallinfo x = mallinfo();
+
+    ERL_NIF_TERM vals[] = {
+      enif_make_uint64(env, malloc_cnt),
+      enif_make_uint64(env, posix_memalign_cnt),
+      enif_make_uint64(env, calloc_cnt),
+      enif_make_uint64(env, realloc_cnt),
+      enif_make_uint64(env, free_cnt),
+      enif_make_uint64(env, strdup_cnt),
+      enif_make_uint64(env, strndup_cnt),
+      enif_make_int(env, x.arena),
+      enif_make_int(env, x.uordblks),
+      enif_make_int(env, x.fordblks),
+      enif_make_int(env, x.hblks),
+      enif_make_int(env, x.hblkhd)
+    };
+
+    int n = sizeof(keys) / sizeof(ERL_NIF_TERM);
+    ERL_NIF_TERM map;
+    enif_make_map_from_arrays(env, keys, vals, n, &map);
+    return map;
 }
 
 static ERL_NIF_TERM malloc_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
@@ -246,7 +320,7 @@ static ERL_NIF_TERM free_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]
 }
 
 static ERL_NIF_TERM vsn_nif(ErlNifEnv* env, int argc, const ERL_NIF_TERM argv[]) {
-    return enif_make_int(env, 4);
+    return enif_make_int(env, 5);
 }
 
 static ErlNifFunc nif_funcs[] = {

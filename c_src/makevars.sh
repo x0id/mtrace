@@ -13,6 +13,7 @@ case `uname -s` in
     # bullseye needs the following for dlsym(3)
     # echo "CFLAGS += -D_GNU_SOURCE"
     # echo "LDFLAGS += -Wl,--no-as-needed -ldl"
+    echo "LIBUNWIND = /usr/lib/`uname -m`-linux-gnu/libunwind.so"
     ;;
 esac
 
